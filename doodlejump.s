@@ -14,7 +14,7 @@
 #
 # Which milestone is reached in this submission?
 # (See the assignment handout for descriptions of the milestones)
-# - Milestone 2
+# - Milestone 3
 ## Which approved additional features have been implemented?
 # (See the assignment handout for the list of additional features)
 # 1. (fill in the feature, if any)
@@ -50,6 +50,8 @@
 	direction: .byte 1 # Direction the Doodler is facing. 0 = Left; 1 = Right.
 	altitude: .word 33 # How high (in pixels) the Doodler is above the last platform it touched
 	vert_direction: .byte 0 # Vertical velocity of Doodler, 0 = Down; 1 = Up
+	
+	jump_height: .word 18
 
 .text
 
@@ -160,7 +162,8 @@ doodler_vert: # Handles vertical Doodler stuff
 	addi $sp, $sp, 4 
 	
 	lw $t7, altitude
-	bge $t7, 15, start_falling
+	lw $t8, jump_height
+	bge $t7, $t8, start_falling # max altitude is 15 pixels
 	
 	j move_doodler_vert # Unnecessary
 
@@ -220,6 +223,9 @@ shift_everything_down_instead:
 	addi $s1, $s1, 128 # Move all platforms down 1 px
 	addi $s2, $s2, 128
 	addi $s3, $s3, 128
+	sw $s1, platform1
+	sw $s2, platform2
+	sw $s3, platform3
 	
 	# If any platforms fall below the floor, we need to generate a new one above
 	la $t2, displayBuffer
@@ -287,12 +293,15 @@ gen_new_platform_3:
 	
 	jr $ra # Jump back to where doodler_vert was called
 	
-detect_platform_collision: # Function sets vert_direction to 1 if Doodler's foot is touching a platform, otherwise it leaves vert_direction untouched
+detect_platform_collision: # Function sets vert_direction to 1 if Doodler's foot is touching a platform AND Doodler is moving down, otherwise it leaves vert_direction untouched
 	# Load object locations into $s0-$s3
 	lw $s0, doodlerLocation
 	lw $s1, platform1
 	lw $s2, platform2
 	lw $s3, platform3
+	lw $s4, vert_direction
+	
+	beq $s4, 1, not_3 # Don't check for collisions if Doodler is moving UP
 	
 	addi $s0, $s0, 1024 # Add 128*8 to doodler location to get leftmost under-foot pixel
 	sub $s1, $s1, $s0 # Subtract platform - doodler foot to get difference
@@ -301,23 +310,25 @@ detect_platform_collision: # Function sets vert_direction to 1 if Doodler's foot
 	
 	# Platform start must be between -6px and 4px relative to $s0 to collide
 	bge $s1, -24, foot_cond_1 # At least -6px
+not_1:
 	bge $s2, -24, foot_cond_2
+not_2:
 	bge $s3, -24, foot_cond_3
-	
+not_3:
 	# Do nothing if no conditions are satisfied
 	jr $ra
 	
 foot_cond_1: # Bounce if at most 4px difference
 	ble $s1, 16, bounce
-	jr $ra # Otherwise do nothing
+	j not_1 # Otherwise do nothing
 	
 foot_cond_2:
 	ble $s2, 16, bounce
-	jr $ra
+	j not_2
 	
 foot_cond_3:
 	ble $s3, 16, bounce
-	jr $ra
+	j not_3
 	
 bounce: # Set vert_direction to 1 and altitude to 0
 	addi $t0, $zero, 1
