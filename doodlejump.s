@@ -161,6 +161,8 @@ doodler_vert: # Handles vertical Doodler stuff
 	
 	lw $t7, altitude
 	bge $t7, 15, start_falling
+	
+	j move_doodler_vert # Unnecessary
 
 move_doodler_vert: # Move Doodler 1px up or down
 	lw $t8, vert_direction
@@ -179,8 +181,8 @@ move_doodler_down:
 	# Update Doodler location and altitude
 	lw $t0, doodlerLocation
 	lw $t1, altitude
-	addi $t0, $t0, 128
-	subi $t1, $t1, 1
+	addi $t0, $t0, 128 # Move doodler down one pixel
+	subi $t1, $t1, 1 # Subtract 1 from altitude
 	sw $t0, doodlerLocation
 	sw $t1, altitude
 	
@@ -190,18 +192,100 @@ move_doodler_down:
 	sub $s0, $s1, $s2 # $s0 is distance of Doodler from origin
 	bge $s0, 3200, Exit # Game over if Doodler touches bottom of screen!
 	
-	jr $ra
+	jr $ra # Jump back to where doodler_vert was called
 	
 move_doodler_up:
 	# Update Doodler location and altitude
 	lw $t0, doodlerLocation
 	lw $t1, altitude
-	subi $t0, $t0, 128
-	addi $t1, $t1, 1
+	
+	la $t2, displayBuffer
+	addi $t2, $t2, 124 # $t2 is the last pixel of the first row
+	ble $t0, $t2, shift_everything_down_instead # If Doodler is already at top of screen, shift everything down instead
+	
+	subi $t0, $t0, 128 # Move doodler up one pixel
+	addi $t1, $t1, 1 # Add 1 to altitude
 	sw $t0, doodlerLocation
 	sw $t1, altitude
 	
-	jr $ra
+	jr $ra # Jump back to where doodler_vert was called
+	
+shift_everything_down_instead:
+	addi $t1, $t1, 1 # Add 1 to altitude
+	sw $t1, altitude
+	
+	lw $s1, platform1
+	lw $s2, platform2
+	lw $s3, platform3
+	addi $s1, $s1, 128 # Move all platforms down 1 px
+	addi $s2, $s2, 128
+	addi $s3, $s3, 128
+	
+	# If any platforms fall below the floor, we need to generate a new one above
+	la $t2, displayBuffer
+	lw $t3, displayLength
+	add $t2, $t2, $t3 # $t2 is max value of display
+	bge $s1, $t2, gen_new_platform_1 # Generate a new platform if it is below display
+	bge $s2, $t2, gen_new_platform_2
+	bge $s3, $t2, gen_new_platform_3
+	
+	jr $ra # Jump back to where doodler_vert was called
+	
+gen_new_platform_1:
+	# First generate X coordinate (do not want platforms to hang over multiple rows)
+	li $v0, 42
+	li $a0, 0
+	li $a1, 26 # up to but not including 26
+	syscall
+	mul $t0, $a0, 4 # X coord is in $t0
+	
+	# Y = 0 (top row) stored in $t1
+	add $t1, $zero, $zero
+	
+	add $t3, $t0, $t1 # Add X and Y coord
+	la $t2, displayBuffer
+	add $t3, $t3, $t2 # $t3 is X and Y coord relative to display buffer address
+	
+	sw $t3, platform1 # Store new Platform location
+	
+	jr $ra # Jump back to where doodler_vert was called
+	
+gen_new_platform_2:
+	# First generate X coordinate (do not want platforms to hang over multiple rows)
+	li $v0, 42
+	li $a0, 0
+	li $a1, 26 # up to but not including 26
+	syscall
+	mul $t0, $a0, 4 # X coord is in $t0
+	
+	# Y = 0 (top row) stored in $t1
+	add $t1, $zero, $zero
+	
+	add $t3, $t0, $t1 # Add X and Y coord
+	la $t2, displayBuffer
+	add $t3, $t3, $t2 # $t3 is X and Y coord relative to display buffer address
+	
+	sw $t3, platform2 # Store new Platform location
+	
+	jr $ra # Jump back to where doodler_vert was called
+gen_new_platform_3:
+		# First generate X coordinate (do not want platforms to hang over multiple rows)
+	li $v0, 42
+	li $a0, 0
+	li $a1, 26 # up to but not including 26
+	syscall
+	mul $t0, $a0, 4 # X coord is in $t0
+	
+	# Y = 0 (top row) stored in $t1
+	add $t1, $zero, $zero
+	
+	add $t3, $t0, $t1 # Add X and Y coord
+	la $t2, displayBuffer
+	add $t3, $t3, $t2 # $t3 is X and Y coord relative to display buffer address
+	
+	sw $t3, platform3 # Store new Platform location
+	
+	jr $ra # Jump back to where doodler_vert was called
 	
 detect_platform_collision: # Function sets vert_direction to 1 if Doodler's foot is touching a platform, otherwise it leaves vert_direction untouched
 	# Load object locations into $s0-$s3
@@ -408,7 +492,7 @@ random_location_med: # function outputs a random location for platforms in memor
 	
 	li $v0, 42
 	li $a0, 0
-	li $a1, 10
+	li $a1, 10 # up to but not including 10
 	syscall
 	addi $a0, $a0, 16
 	mul $t1, $a0, 128 # Y coord is in $t1
