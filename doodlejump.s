@@ -40,7 +40,7 @@
 	green: .word 0x9ccb4a
 	dark_green: .word 0x6c9b1a
 	
-	# Locations of objects (in display buffer)
+	# Locations of objects (in display buffer) 
 	doodlerLocation: .word 0
 	platform1: .word 0
 	platform2: .word 0
