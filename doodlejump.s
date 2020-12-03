@@ -70,8 +70,8 @@ init:
 	addi $t0, $t0, 3884 # Third platform always spawns bottom middle of screen
 	sw $t0, platform3
 	
-	la $t0, displayBuffer # Doodler spawns right above bottom platform
-	addi $t0, $t0, 2480
+	la $t0, displayBuffer
+	addi $t0, $t0, 2480 # Doodler spawns right above third platform
 	sw $t0, doodlerLocation
 	
 	j main
@@ -79,6 +79,8 @@ init:
 main:
 	lw $t8, 0xffff0000 # Load kb input status into $t8
 	beq $t8, 1, keyboard_input # Respond to keyboard input
+	
+	j main_after_kb
 
 main_after_kb:
 
@@ -91,6 +93,8 @@ main_after_kb:
 	# If statement to draw correct orientation of Doodler
 	beq, $s0, 0, DrawDoodlerLeftCond
 	beq, $s0, 1, DrawDoodlerRightCond
+	
+	j Exit # This should never happen
 	
 DrawDoodlerLeftCond:
 	jal DrawDoodlerLeft
