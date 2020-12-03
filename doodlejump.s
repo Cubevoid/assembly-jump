@@ -164,7 +164,7 @@ move_doodler_down:
 	sw $t0, doodlerLocation
 	sw $t1, altitude
 	
-	# Test collision with bottom of screen
+	# Test collision with bottom of screen, in which case the game is over
 	lw $s1, doodlerLocation # $s1 stores Doodler Location
 	la $s2, displayBuffer # $s2 stores origin location (top left corner)
 	sub $s0, $s1, $s2 # $s0 is distance of Doodler from origin
