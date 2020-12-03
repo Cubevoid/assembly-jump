@@ -151,6 +151,9 @@ move_doodler_right:
 	jr $ra
 	
 move_doodler_vert: # Moves Doodler 1px up or down
+	lw $t8, vert_direction
+	beq $t8, 0, move_doodler_down
+	beq $t8, 1, move_doodler_up
 
 move_doodler_down:
 	# Update Doodler location and altitude
@@ -166,6 +169,17 @@ move_doodler_down:
 	la $s2, displayBuffer # $s2 stores origin location (top left corner)
 	sub $s0, $s1, $s2 # $s0 is distance of Doodler from origin
 	bge $s0, 3200, Exit # Game over if Doodler touches bottom of screen!
+	
+	jr $ra
+	
+move_doodler_up:
+	# Update Doodler location and altitude
+	lw $t0, doodlerLocation
+	lw $t1, altitude
+	subi $t0, $t0, 128
+	addi $t1, $t1, 1
+	sw $t0, doodlerLocation
+	sw $t1, altitude
 	
 	jr $ra
 	
