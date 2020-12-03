@@ -77,7 +77,7 @@ main:
 
 main_after_kb:
 
-	jal move_doodler_vert # Move the Doodler vertically
+	jal doodler_vert # Move the Doodler vertically
 	
 	jal DrawBG # Draw background into frame buffer
 	
@@ -150,11 +150,31 @@ move_doodler_right:
 	
 	jr $ra
 	
-move_doodler_vert: # Moves Doodler 1px up or down
+doodler_vert: # Handles vertical Doodler stuff
+	subi, $sp, $sp, 4 # Move stack pointer up 1 word
+	sw $ra, 0($sp) # Store $ra in the stack
+	
+	jal detect_platform_collision
+	
+	lw $ra, 0($sp) # Pop from stack into $ra
+	addi $sp, $sp, 4 
+	
+	lw $t7, altitude
+	bge $t7, 15, start_falling
+
+move_doodler_vert: # Move Doodler 1px up or down
 	lw $t8, vert_direction
 	beq $t8, 0, move_doodler_down
 	beq $t8, 1, move_doodler_up
-
+	
+	jr $ra # Should not be necessary
+	
+start_falling:
+	addi $t8, $zero, 0 # Set $t8 to 0 (falling)
+	sw $t8, vert_direction # Set vert_direction to 0 (falling)
+	
+	j move_doodler_vert
+	
 move_doodler_down:
 	# Update Doodler location and altitude
 	lw $t0, doodlerLocation
@@ -181,6 +201,44 @@ move_doodler_up:
 	sw $t0, doodlerLocation
 	sw $t1, altitude
 	
+	jr $ra
+	
+detect_platform_collision: # Function sets vert_direction to 1 if Doodler's foot is touching a platform, otherwise it leaves vert_direction untouched
+	# Load object locations into $s0-$s3
+	lw $s0, doodlerLocation
+	lw $s1, platform1
+	lw $s2, platform2
+	lw $s3, platform3
+	
+	addi $s0, $s0, 1024 # Add 128*8 to doodler location to get leftmost under-foot pixel
+	sub $s1, $s1, $s0 # Subtract platform - doodler foot to get difference
+	sub $s2, $s2, $s0 # $s1, $s2, and $s3 now store difference in platform loc relative to Doodler foot
+	sub $s3, $s3, $s0 # (in memory buffer)
+	
+	# Platform start must be between -6px and 4px relative to $s0 to collide
+	bge $s1, -24, foot_cond_1 # At least -6px
+	bge $s2, -24, foot_cond_2
+	bge $s3, -24, foot_cond_3
+	
+	# Do nothing if no conditions are satisfied
+	jr $ra
+	
+foot_cond_1: # Bounce if at most 4px difference
+	ble $s1, 16, bounce
+	jr $ra # Otherwise do nothing
+	
+foot_cond_2:
+	ble $s2, 16, bounce
+	jr $ra
+	
+foot_cond_3:
+	ble $s3, 16, bounce
+	jr $ra
+	
+bounce: # Set vert_direction to 1 and altitude to 0
+	addi $t0, $zero, 1
+	sw $t0, vert_direction
+	sw $zero, altitude
 	jr $ra
 	
 DrawBG:
