@@ -23,7 +23,7 @@
 # ... (add more if necessary)
 #
 # Any additional information that the TA needs to know:
-# - (write here, if any)
+# - Minor bug: memory address out of range when Doodler jumps into top left of screen
 #
 #####################################################################
 
@@ -39,6 +39,7 @@
 	yellow: .word 0xfee33c
 	green: .word 0x9ccb4a
 	dark_green: .word 0x6c9b1a
+	scoreboard_color: .word 0x00008b # Scoreboard is dark blue
 	
 	# Locations of objects (in display buffer) 
 	doodlerLocation: .word 0
@@ -52,6 +53,8 @@
 	vert_direction: .byte 0 # Vertical velocity of Doodler, 0 = Down; 1 = Up
 	
 	jump_height: .word 18
+	
+	score: .word 0 # 4 digit decimal (9999 max)
 
 .text
 
@@ -105,8 +108,11 @@ draw_platforms:
 	lw $a0, platform3
 	jal DrawPlatform
 	
-	jal DrawFromBuffer # Copy from buffer to display
+	jal draw_scoreboard
 	
+	jal DrawFromBuffer # Copy from buffer to display
+
+sleep:
 	li $v0, 32 # Sleep syscall
 	li $a0, 42 # Sleep for 42 ms
 	syscall # fps is about 24
@@ -214,6 +220,11 @@ move_doodler_up:
 	jr $ra # Jump back to where doodler_vert was called
 	
 shift_everything_down_instead:
+
+	lw $t0, score
+	addi $t0, $t0, 1 # Add 1 to score
+	sw $t0, score
+
 	addi $t1, $t1, 1 # Add 1 to altitude
 	sw $t1, altitude
 	
@@ -330,10 +341,11 @@ foot_cond_3:
 	ble $s3, 16, bounce
 	j not_3
 	
-bounce: # Set vert_direction to 1 and altitude to 0
+bounce: # Set vert_direction to 1 and altitude to 0, and add 1 to score
 	addi $t0, $zero, 1
 	sw $t0, vert_direction
 	sw $zero, altitude
+	
 	jr $ra
 	
 DrawBG:
@@ -350,6 +362,79 @@ BGLoop:
 	j BGLoop
 	
 EndBGLoop:
+	jr $ra
+	
+DrawPlatform: # function takes in $a0 for left start point of platform. Platform is 7 pixels long
+	lw $t0, dark_green # $t0 is Dark green
+	sw $t0, 0($a0)
+	sw $t0, 4($a0)
+	sw $t0, 8($a0)
+	sw $t0, 12($a0)
+	sw $t0, 16($a0)
+	sw $t0, 20($a0)
+	sw $t0, 24($a0)
+	
+	jr $ra
+	
+random_location_high: # function outputs a random location for platforms in memory buffer in $v0
+	# First generate X coordinate (do not want platforms to hang over multiple rows)
+	li $v0, 42
+	li $a0, 0
+	li $a1, 26 # up to but not including 26
+	syscall
+	mul $t0, $a0, 4 # X coord is in $t0
+	
+	li $v0, 42
+	li $a0, 0
+	li $a1, 10
+	syscall
+	addi $a0, $a0, 4
+	mul $t1, $a0, 128 # Y coord is in $t1
+	
+	add $v0, $t0, $t1 # Add X and Y coord
+	la $t2, displayBuffer
+	add $v0, $v0, $t2 # Return X and Y coord relative to display buffer address
+	
+	jr $ra
+	
+random_location_med: # function outputs a random location for platforms in memory buffer in $v0
+	# First generate X coordinate (do not want platforms to hang over multiple rows)
+	li $v0, 42
+	li $a0, 0
+	li $a1, 26 # up to but not including 26
+	syscall
+	mul $t0, $a0, 4 # X coord is in $t0
+	
+	li $v0, 42
+	li $a0, 0
+	li $a1, 10 # up to but not including 10
+	syscall
+	addi $a0, $a0, 16
+	mul $t1, $a0, 128 # Y coord is in $t1
+	
+	add $v0, $t0, $t1 # Add X and Y coord
+	la $t2, displayBuffer
+	add $v0, $v0, $t2 # Return X and Y coord relative to display buffer address
+	
+	jr $ra
+	
+DrawFromBuffer: # Draw whatever is in the memory buffer onto the screen
+	la $t0, displayBuffer
+	lw $t1, displayAddress
+	lw $t2, displayLength
+	add $t3, $t1, $t2 # $t3 stores the max display address
+	j DrawLoop
+	
+DrawLoop:
+	bge $t1, $t3, DrawLoopEnd # Loop exits when display address >= max display address
+	lw $t9, 0($t0) # Copy from buffer to $t9
+	sw $t9, 0($t1) # Copy from $t9 to display
+	
+	addi $t0, $t0, 4 # Increment buffer address
+	addi $t1, $t1, 4 # Increment display address
+	j DrawLoop
+	
+DrawLoopEnd:
 	jr $ra
 	
 DrawDoodlerRight: # doodlerLocation is the top left corner address of the 8x8 Doodler
@@ -460,78 +545,277 @@ DrawDoodlerLeft: # doodlerLocation is the top left corner address of the 8x8 Doo
 	
 	jr $ra
 	
-DrawPlatform: # function takes in $a0 for left start point of platform. Platform is 7 pixels long
-	lw $t0, dark_green # $t0 is Dark green
-	sw $t0, 0($a0)
-	sw $t0, 4($a0)
-	sw $t0, 8($a0)
-	sw $t0, 12($a0)
-	sw $t0, 16($a0)
-	sw $t0, 20($a0)
-	sw $t0, 24($a0)
+# NUMBERS ARE ALL 3px WIDE BY 5px TALL
+# Location is top left corner
+draw_1: # Function draws a 1 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
+	
+	sw $t0, 0($a3)
+	sw $t0, 4($a3)
+	sw $t0, 132($a3)
+	sw $t0, 260($a3)
+	sw $t0, 388($a3)
+	sw $t0, 512($a3)
+	sw $t0, 516($a3)
+	sw $t0, 520($a3)
+	
+	jr $ra
+
+draw_2: # Function draws a 2 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
+	
+	sw $t0, 0($a3)
+	sw $t0, 4($a3)
+	sw $t0, 8($a3)
+	sw $t0, 136($a3)
+	sw $t0, 256($a3)
+	sw $t0, 260($a3)
+	sw $t0, 264($a3)
+	sw $t0, 384($a3)
+	sw $t0, 512($a3)
+	sw $t0, 516($a3)
+	sw $t0, 520($a3)
 	
 	jr $ra
 	
-random_location_high: # function outputs a random location for platforms in memory buffer in $v0
-	# First generate X coordinate (do not want platforms to hang over multiple rows)
-	li $v0, 42
-	li $a0, 0
-	li $a1, 26 # up to but not including 26
-	syscall
-	mul $t0, $a0, 4 # X coord is in $t0
+draw_3: # Function draws a 3 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
 	
-	li $v0, 42
-	li $a0, 0
-	li $a1, 10
-	syscall
-	addi $a0, $a0, 4
-	mul $t1, $a0, 128 # Y coord is in $t1
+	sw $t0, 0($a3)
+	sw $t0, 4($a3)
+	sw $t0, 8($a3)
+	sw $t0, 136($a3)
+	sw $t0, 256($a3)
+	sw $t0, 260($a3)
+	sw $t0, 264($a3)
+	sw $t0, 392($a3)
+	sw $t0, 512($a3)
+	sw $t0, 516($a3)
+	sw $t0, 520($a3)
 	
-	add $v0, $t0, $t1 # Add X and Y coord
+	jr $ra
+	
+draw_4: # Function draws a 4 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
+	
+	sw $t0, 0($a3)
+	sw $t0, 8($a3)
+	sw $t0, 128($a3)
+	sw $t0, 136($a3)
+	sw $t0, 256($a3)
+	sw $t0, 260($a3)
+	sw $t0, 264($a3)
+	sw $t0, 392($a3)
+	sw $t0, 520($a3)
+	
+	jr $ra
+	
+draw_5: # Function draws a 5 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
+	
+	sw $t0, 0($a3)
+	sw $t0, 4($a3)
+	sw $t0, 8($a3)
+	sw $t0, 128($a3)
+	sw $t0, 256($a3)
+	sw $t0, 260($a3)
+	sw $t0, 264($a3)
+	sw $t0, 392($a3)
+	sw $t0, 512($a3)
+	sw $t0, 516($a3)
+	sw $t0, 520($a3)
+	
+	jr $ra
+	
+draw_6: # Function draws a 6 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
+	
+	sw $t0, 0($a3)
+	sw $t0, 4($a3)
+	sw $t0, 8($a3)
+	sw $t0, 128($a3)
+	sw $t0, 256($a3)
+	sw $t0, 260($a3)
+	sw $t0, 264($a3)
+	sw $t0, 384($a3)
+	sw $t0, 392($a3)
+	sw $t0, 512($a3)
+	sw $t0, 516($a3)
+	sw $t0, 520($a3)
+	
+	jr $ra
+	
+draw_7: # Function draws a 7 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
+	
+	sw $t0, 0($a3)
+	sw $t0, 4($a3)
+	sw $t0, 8($a3)
+	sw $t0, 136($a3)
+	sw $t0, 264($a3)
+	sw $t0, 392($a3)
+	sw $t0, 520($a3)
+	
+	jr $ra
+	
+draw_8: # Function draws an 8 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
+	
+	sw $t0, 0($a3)
+	sw $t0, 4($a3)
+	sw $t0, 8($a3)
+	sw $t0, 128($a3)
+	sw $t0, 136($a3)
+	sw $t0, 256($a3)
+	sw $t0, 260($a3)
+	sw $t0, 264($a3)
+	sw $t0, 384($a3)
+	sw $t0, 392($a3)
+	sw $t0, 512($a3)
+	sw $t0, 516($a3)
+	sw $t0, 520($a3)
+	
+	jr $ra
+	
+draw_9: # Function draws a 9 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
+	
+	sw $t0, 0($a3)
+	sw $t0, 4($a3)
+	sw $t0, 8($a3)
+	sw $t0, 128($a3)
+	sw $t0, 136($a3)
+	sw $t0, 256($a3)
+	sw $t0, 260($a3)
+	sw $t0, 264($a3)
+	sw $t0, 392($a3)
+	sw $t0, 512($a3)
+	sw $t0, 516($a3)
+	sw $t0, 520($a3)
+	
+	jr $ra
+	
+draw_0: # Function draws a 0 at memory location specified in $a3
+	lw $t0, scoreboard_color # $t0 stores color of scoreboard
+	
+	sw $t0, 0($a3)
+	sw $t0, 4($a3)
+	sw $t0, 8($a3)
+	sw $t0, 128($a3)
+	sw $t0, 136($a3)
+	sw $t0, 256($a3)
+	sw $t0, 264($a3)
+	sw $t0, 384($a3)
+	sw $t0, 392($a3)
+	sw $t0, 512($a3)
+	sw $t0, 516($a3)
+	sw $t0, 520($a3)
+	
+	jr $ra
+	
+draw_scoreboard:
+	lw $t1, score # $t1 stores the current score
+	addi $s1, $zero, 10 # $s1 stores 10^1
+	addi $s2, $zero, 100 # $s2 stores 10^2
+	addi $s3, $zero, 1000 # $s3 stores 10^3
+	
+	div $t1, $s3 # LO stores value of score // 1000, HI stores remainder
+	mflo $t9 # $t9 stores thousands digit of score
+	mfhi $t1 # $t1 stores score without thousands digit
+	
+	div $t1, $s2 # LO stores value of $t1 // 100, HI stores remainder
+	mflo $t8 # $t8 stores hundreds digit of score
+	mfhi $t1 # $t1 stores score without thousands or hundreds digit
+	
+	div $t1, $s1 # LO stores value of $t1 // 10, HI stores remainder
+	mflo $t7 # $t7 stores tens digit of score
+	mfhi $t6 # $t6 stores ones digit of score
+	
+	# TODO: stack preserve $ra
+	subi $sp, $sp, 4 # move stack pointer up
+	sw $ra, 0($sp) # push $ra into stack
+	
+	jal draw_ones_digit
+	jal draw_tens_digit
+	jal draw_hundreds_digit
+	jal draw_thousands_digit
+	
+	lw $ra, 0($sp) # pop $ra from stack
+	addi $sp, $sp, 4 # move stack pointer down
+	
+	jr $ra
+	
+draw_ones_digit: # Function takes in $t6 (ones digit of score) and draws it on the screen
 	la $t2, displayBuffer
-	add $v0, $v0, $t2 # Return X and Y coord relative to display buffer address
+	addi $a3, $t2, 240 # set $a3 to location to draw ones digit
 	
-	jr $ra
+	# Draw appropriate asset for $t6 (score's ones digit)
+	beq $t6, 0, draw_0
+	beq $t6, 1, draw_1
+	beq $t6, 2, draw_2
+	beq $t6, 3, draw_3
+	beq $t6, 4, draw_4
+	beq $t6, 5, draw_5
+	beq $t6, 6, draw_6
+	beq $t6, 7, draw_7
+	beq $t6, 8, draw_8
+	beq $t6, 9, draw_9
 	
-random_location_med: # function outputs a random location for platforms in memory buffer in $v0
-	# First generate X coordinate (do not want platforms to hang over multiple rows)
-	li $v0, 42
-	li $a0, 0
-	li $a1, 26 # up to but not including 26
-	syscall
-	mul $t0, $a0, 4 # X coord is in $t0
+	j draw_ones_digit # SHOULD NEVER HAPPEN
 	
-	li $v0, 42
-	li $a0, 0
-	li $a1, 10 # up to but not including 10
-	syscall
-	addi $a0, $a0, 16
-	mul $t1, $a0, 128 # Y coord is in $t1
-	
-	add $v0, $t0, $t1 # Add X and Y coord
+draw_tens_digit:
 	la $t2, displayBuffer
-	add $v0, $v0, $t2 # Return X and Y coord relative to display buffer address
+	addi $a3, $t2, 224 # set $a3 to location to draw tens digit
 	
-	jr $ra
+	# Draw appropriate asset for $t7 (score's tens digit)
+	beq $t7, 0, draw_0
+	beq $t7, 1, draw_1
+	beq $t7, 2, draw_2
+	beq $t7, 3, draw_3
+	beq $t7, 4, draw_4
+	beq $t7, 5, draw_5
+	beq $t7, 6, draw_6
+	beq $t7, 7, draw_7
+	beq $t7, 8, draw_8
+	beq $t7, 9, draw_9
 	
-DrawFromBuffer: # Draw whatever is in the memory buffer onto the screen
-	la $t0, displayBuffer
-	lw $t1, displayAddress
-	lw $t2, displayLength
-	add $t3, $t1, $t2 # $t3 stores the max display address
-	j DrawLoop
+	j draw_tens_digit # SHOULD NEVER HAPPEN
+
+draw_hundreds_digit:
+	la $t2, displayBuffer
+	addi $a3, $t2, 208 # set $a3 to location to draw hundreds digit
 	
-DrawLoop:
-	bge $t1, $t3, DrawLoopEnd # Loop exits when display address >= max display address
-	lw $t9, 0($t0) # Copy from buffer to $t9
-	sw $t9, 0($t1) # Copy from $t9 to display
+	# Draw appropriate asset for $t8 (score's hundreds digit)
+	beq $t8, 0, draw_0
+	beq $t8, 1, draw_1
+	beq $t8, 2, draw_2
+	beq $t8, 3, draw_3
+	beq $t8, 4, draw_4
+	beq $t8, 5, draw_5
+	beq $t8, 6, draw_6
+	beq $t8, 7, draw_7
+	beq $t8, 8, draw_8
+	beq $t8, 9, draw_9
 	
-	addi $t0, $t0, 4 # Increment buffer address
-	addi $t1, $t1, 4 # Increment display address
-	j DrawLoop
+	j draw_hundreds_digit # SHOULD NEVER HAPPEN
 	
-DrawLoopEnd:
-	jr $ra
+draw_thousands_digit:
+	la $t2, displayBuffer
+	addi $a3, $t2, 192 # set $a3 to location to draw thousands digit
+	
+	# Draw appropriate asset for $t9 (score's thousands digit)
+	beq $t9, 0, draw_0
+	beq $t9, 1, draw_1
+	beq $t9, 2, draw_2
+	beq $t9, 3, draw_3
+	beq $t9, 4, draw_4
+	beq $t9, 5, draw_5
+	beq $t9, 6, draw_6
+	beq $t9, 7, draw_7
+	beq $t9, 8, draw_8
+	beq $t9, 9, draw_9
+	
+	j draw_thousands_digit # SHOULD NEVER HAPPEN
 	
 Exit:
 	li $v0, 10 # terminate the program gracefully
