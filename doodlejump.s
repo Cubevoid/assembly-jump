@@ -17,10 +17,8 @@
 # - Milestone 4
 ## Which approved additional features have been implemented?
 # (See the assignment handout for the list of additional features)
-# 1. (fill in the feature, if any)
-# 2. (fill in the feature, if any)
-# 3. (fill in the feature, if any)
-# ... (add more if necessary)
+# 1. Scoreboard
+# 2. Game over screen (s to reset game)
 #
 # Any additional information that the TA needs to know:
 # - Minor bug: memory address out of range when Doodler jumps into top left of screen
