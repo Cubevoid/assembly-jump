@@ -38,6 +38,7 @@
 	green: .word 0x9ccb4a
 	dark_green: .word 0x6c9b1a
 	scoreboard_color: .word 0x00008b # Scoreboard is dark blue
+	grid_color: .word 0xe7dcd2 # darker tan
 	
 	# Locations of objects (in display buffer) 
 	doodlerLocation: .word 0
@@ -103,6 +104,8 @@ main_after_kb:
 	jal doodler_vert # Move the Doodler vertically
 	
 	jal DrawBG # Draw background into frame buffer
+	
+	jal draw_grid # Fancy grid!
 	
 	lw $s0, direction
 
@@ -377,11 +380,81 @@ DrawBG:
 	
 BGLoop: 
 	bge $t0, $t2, EndBGLoop
-	sw $t1, 0($t0) # $t0 is the counter in the loop. Paint pixel teal
+	sw $t1, 0($t0) # $t0 is the counter in the loop. Paint pixel tan
 	addi $t0, $t0, 4 # Increment one pixel
 	j BGLoop
 	
 EndBGLoop:
+	jr $ra
+	
+draw_grid: # draws a grid in the display buffer, with a vertical offset equal to score % 4
+	la $a0, displayBuffer # Load buffer start address into $a0
+	addi $t0, $zero, 16 # $t0 stores spacing between each line (4px)
+	addi $t1, $a0, 128 # $t1 stores max x value
+	addi $t2, $a0, 4096 # $t2 stores max y value
+	
+	addi $sp, $sp, -4 # Move stack pointer up
+	sw $ra, 0($sp) # Push $ra to stack
+	
+	addi $a0, $a0, 4
+	j draw_vert_lines
+	
+draw_vert_lines: # Draw all the vertical lines
+	bge $a0, $t1, end_vert_lines_loop
+	jal draw_vline
+	add $a0, $a0, $t0 # Increment $a0 by spacing
+	j draw_vert_lines
+
+end_vert_lines_loop: # Reset $a0
+	la $a0, displayBuffer
+	
+	lw $t3, score
+	addi $t4, $zero, 4
+	div $t3, $t4 # Divide score by 4; HI stores remainder
+	mfhi $t3 # $t3 stores vertical offset in pixels
+	mul $t3, $t3, 128 # $t3 stores vertical offset in bytes
+	
+	add $a0, $a0, $t3 # $a0 is starting value of horiz lines
+	
+	j draw_horiz_lines
+
+draw_horiz_lines: # Now draw all the horizontal lines with correct offset
+	bge $a0, $t2, end_horiz_lines_loop # Break when max y value is reached
+	jal draw_hline
+	addi $a0, $a0, 512 # Increment $a0 by 4 lines
+	j draw_horiz_lines
+
+end_horiz_lines_loop:
+	lw $ra, 0($sp) # Pop $sp off stack
+	addi $sp, $sp, 4 # Move stack pointer down
+	jr $ra
+
+draw_hline: # function draws a horizontal gridline at the memory location in $a0. Does not modify the value in $a0.
+	add $s0, $a0, $zero # Duplicate value of $a0 into $s0
+	addi $s1, $s0, 128 # $s1 stores end of line
+	lw $s2, grid_color
+	
+hline_loop:
+	bge $s0, $s1, end_hline_loop
+	sw $s2, 0($s0) # Push pixel
+	addi $s0, $s0, 4 # Increment $s0
+	j hline_loop
+	
+end_hline_loop:
+	jr $ra
+	
+draw_vline: # function draws a vertical gridline at the memory location in $a0. Does not modify the value in $a0.
+	add $s0, $a0, $zero # Duplicate value of $a0 into $s0
+	add $s1, $s0, 4096 # $s1 stores end of line
+	lw $s2, grid_color
+	
+vline_loop:
+	bge $s0, $s1, end_vline_loop
+	sw $s2, 0($s0) # Push pixel
+	addi $s0, $s0, 128 # Increment $s0
+	j vline_loop
+	
+end_vline_loop:
 	jr $ra
 	
 DrawPlatform: # function takes in $a0 for left start point of platform. Platform is 7 pixels long
