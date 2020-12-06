@@ -19,6 +19,7 @@
 # (See the assignment handout for the list of additional features)
 # 1. Scoreboard
 # 2. Game over screen (s to reset game)
+# 3. Fancy graphics: Doodler, scrolling background, festive platforms
 #
 # Any additional information that the TA needs to know:
 # - Minor bug: memory address out of range when Doodler jumps into top left of screen
@@ -36,6 +37,7 @@
 	bgColor: .word 0xefeae5 # tan
 	yellow: .word 0xfee33c
 	green: .word 0x9ccb4a
+	red: .word 0xff0000
 	dark_green: .word 0x6c9b1a
 	scoreboard_color: .word 0x00008b # Scoreboard is dark blue
 	grid_color: .word 0xe7dcd2 # darker tan
@@ -459,12 +461,13 @@ end_vline_loop:
 	
 DrawPlatform: # function takes in $a0 for left start point of platform. Platform is 7 pixels long
 	lw $t0, dark_green # $t0 is Dark green
+	lw $t1, red # $t1 is Red
 	sw $t0, 0($a0)
-	sw $t0, 4($a0)
+	sw $t1, 4($a0)
 	sw $t0, 8($a0)
-	sw $t0, 12($a0)
+	sw $t1, 12($a0)
 	sw $t0, 16($a0)
-	sw $t0, 20($a0)
+	sw $t1, 20($a0)
 	sw $t0, 24($a0)
 	
 	jr $ra
