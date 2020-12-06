@@ -14,7 +14,7 @@
 #
 # Which milestone is reached in this submission?
 # (See the assignment handout for descriptions of the milestones)
-# - Milestone 3
+# - Milestone 4
 ## Which approved additional features have been implemented?
 # (See the assignment handout for the list of additional features)
 # 1. (fill in the feature, if any)
@@ -58,6 +58,16 @@
 
 .text
 
+wait_for_start:
+	lw $t8, 0xffff0000 # Load kb input status into $t8
+	beq $t8, 1, keyboard_input # Respond to keyboard input
+	
+	li $v0, 32 # Sleep syscall
+	li $a0, 50 # Sleep for 50 ms
+	syscall
+	
+	j wait_for_start
+
 init:
 	# Generate random locations for 2 platforms
 	jal random_location_high
@@ -73,6 +83,14 @@ init:
 	la $t0, displayBuffer
 	addi $t0, $t0, 2480 # Doodler spawns right above third platform
 	sw $t0, doodlerLocation
+	
+	# reset direction, altitude, vert_direction, score
+	addi $t0, $zero, 1
+	sw $t0, direction
+	addi $t0, $t0, 32
+	sw $t0, altitude
+	sw $zero, vert_direction
+	sw $zero, score
 	
 	j main
 
@@ -125,7 +143,7 @@ sleep:
 	
 keyboard_input:
 	lw $s5, 0xffff0004 # Load the pressed key into $s5
-	beq $s5, 115, Exit # Exit if key pressed is s
+	beq $s5, 115, init # Start game if key pressed is s
 	beq $s5, 106, respond_to_j # Check if key pressed is j
 	beq $s5, 107, respond_to_k # Check if key pressed is k
 	j main_after_kb
@@ -203,7 +221,7 @@ move_doodler_down:
 	lw $s1, doodlerLocation # $s1 stores Doodler Location
 	la $s2, displayBuffer # $s2 stores origin location (top left corner)
 	sub $s0, $s1, $s2 # $s0 is distance of Doodler from origin
-	bge $s0, 3200, Exit # Game over if Doodler touches bottom of screen!
+	bge $s0, 3200, game_over_screen # Game over if Doodler touches bottom of screen!
 	
 	jr $ra # Jump back to where doodler_vert was called
 	
@@ -820,6 +838,150 @@ draw_thousands_digit:
 	beq $t9, 9, draw_9
 	
 	j draw_thousands_digit # SHOULD NEVER HAPPEN
+	
+game_over_screen: # Draws GAME OVER on the screen and resets game
+	
+	la $t2, displayBuffer
+	addi $t2, $t2, 1048 # $t2 stores starting location to draw text
+	
+	lw $t0, scoreboard_color # $t0 stores dark blue
+	
+	# Row 1
+	sw $t0, 0($t2)
+	sw $t0, 4($t2)
+	sw $t0, 8($t2)
+	sw $t0, 12($t2)
+	sw $t0, 20($t2)
+	sw $t0, 24($t2)
+	sw $t0, 28($t2)
+	sw $t0, 32($t2)
+	sw $t0, 40($t2)
+	sw $t0, 44($t2)
+	sw $t0, 52($t2)
+	sw $t0, 56($t2)
+	sw $t0, 64($t2)
+	sw $t0, 68($t2)
+	sw $t0, 72($t2)
+	sw $t0, 76($t2)
+	
+	# Row 2
+	addi $t2, $t2, 128 # Move $t2 to next row
+	sw $t0, 0($t2)
+	sw $t0, 20($t2)
+	sw $t0, 32($t2)
+	sw $t0, 40($t2)
+	sw $t0, 48($t2)
+	sw $t0, 56($t2)
+	sw $t0, 64($t2)
+	
+	# Row 3
+	addi $t2, $t2, 128 # Move $t2 to next row
+	sw $t0, 0($t2)
+	sw $t0, 8($t2)
+	sw $t0, 12($t2)
+	sw $t0, 20($t2)
+	sw $t0, 24($t2)
+	sw $t0, 28($t2)
+	sw $t0, 32($t2)
+	sw $t0, 40($t2)
+	sw $t0, 48($t2)
+	sw $t0, 56($t2)
+	sw $t0, 64($t2)
+	sw $t0, 68($t2)
+	sw $t0, 72($t2)
+	
+	# Row 4
+	addi $t2, $t2, 128 # Move $t2 to next row
+	sw $t0, 0($t2)
+	sw $t0, 12($t2)
+	sw $t0, 20($t2)
+	sw $t0, 32($t2)
+	sw $t0, 40($t2)
+	sw $t0, 56($t2)
+	sw $t0, 64($t2)
+	
+	# Row 5
+	addi $t2, $t2, 128 # Move $t2 to next row
+	sw $t0, 0($t2)
+	sw $t0, 4($t2)
+	sw $t0, 8($t2)
+	sw $t0, 12($t2)
+	sw $t0, 20($t2)
+	sw $t0, 32($t2)
+	sw $t0, 40($t2)
+	sw $t0, 56($t2)
+	sw $t0, 64($t2)
+	sw $t0, 68($t2)
+	sw $t0, 72($t2)
+	sw $t0, 76($t2)
+	
+	# Next row of letters
+	addi $t2, $t2, 512 # Move $t2 down 4 rows
+	sw $t0, 0($t2)
+	sw $t0, 4($t2)
+	sw $t0, 8($t2)
+	sw $t0, 12($t2)
+	sw $t0, 20($t2)
+	sw $t0, 32($t2)
+	sw $t0, 40($t2)
+	sw $t0, 44($t2)
+	sw $t0, 48($t2)
+	sw $t0, 52($t2)
+	sw $t0, 60($t2)
+	sw $t0, 64($t2)
+	sw $t0, 68($t2)
+	
+	# Row 2
+	addi $t2, $t2, 128 # Move $t2 down one row
+	sw $t0, 0($t2)
+	sw $t0, 12($t2)
+	sw $t0, 20($t2)
+	sw $t0, 32($t2)
+	sw $t0, 40($t2)
+	sw $t0, 60($t2)
+	sw $t0, 72($t2)
+	
+	# Row 3
+	addi $t2, $t2, 128 # Move $t2 down one row
+	sw $t0, 0($t2)
+	sw $t0, 12($t2)
+	sw $t0, 20($t2)
+	sw $t0, 32($t2)
+	sw $t0, 40($t2)
+	sw $t0, 44($t2)
+	sw $t0, 48($t2)
+	sw $t0, 60($t2)
+	sw $t0, 64($t2)
+	sw $t0, 68($t2)
+	
+	# Row 4
+	addi $t2, $t2, 128 # Move $t2 down one row
+	sw $t0, 0($t2)
+	sw $t0, 12($t2)
+	sw $t0, 20($t2)
+	sw $t0, 32($t2)
+	sw $t0, 40($t2)
+	sw $t0, 60($t2)
+	sw $t0, 72($t2)
+	
+	# Row 5
+	addi $t2, $t2, 128 # Move $t2 down one rows
+	sw $t0, 0($t2)
+	sw $t0, 4($t2)
+	sw $t0, 8($t2)
+	sw $t0, 12($t2)
+	sw $t0, 24($t2)
+	sw $t0, 28($t2)
+	sw $t0, 40($t2)
+	sw $t0, 44($t2)
+	sw $t0, 48($t2)
+	sw $t0, 52($t2)
+	sw $t0, 60($t2)
+	sw $t0, 72($t2)
+	
+	jal DrawFromBuffer
+	
+	j wait_for_start
 	
 Exit:
 	li $v0, 10 # terminate the program gracefully
