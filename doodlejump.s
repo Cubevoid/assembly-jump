@@ -56,6 +56,8 @@
 	jump_height: .word 18
 	
 	score: .word 0 # 4 digit decimal (9999 max)
+	
+	frames: .word 0 # Counts number of frames (for syncing music)
 
 .text
 
@@ -142,7 +144,116 @@ sleep:
 	li $a0, 42 # Sleep for 42 ms
 	syscall # fps is about 24
 	
+	lw $t0, frames # Increment frame counter
+	addi $t0, $t0, 1
+	sw $t0, frames
+	
+	j play_sound
+	
+play_sound: # Maps the frame count to the correct tone in the nyan cat soundtrack
+	# Soundtrack has 32 8th notes at ~60bpm
+	# Since the sleep is 42ms, every 3 frames = 1 eigth note
+	# $t0 stores frame count
+	
+	addi $t1, $zero, 3
+	div $t0, $t1 # HI stores remainder, i.e. frames % 3
+	mfhi $t1
+	bne $t1, $zero, main # If frame is not multiple of 3, don't play sound
+	mflo $t0 # $t0 now stores 8th note count (absolute)
+	addi $t1, $zero, 32
+	div $t0, $t1 # 8th note count mod 32 (stored in HI)
+	mfhi $t0 # $t0 stores 8th note count (mod 32)
+	
+	addi $v0, $zero, 31 # Service 31
+	addi $a2, $zero, 1 # Instrument, 0-127 (1 is piano)
+	addi $a3, $zero, 60 # Volume, 0-127
+	
+	beq $t0, 0, f_sharp_long
+	beq $t0, 2, g_sharp_long
+	beq $t0, 4, d
+	beq $t0, 5, d_sharp_long
+	beq $t0, 7, c_sharp
+	beq $t0, 8, d
+	beq $t0, 9, c_sharp
+	beq $t0, 10, b_long
+	beq $t0, 12, b_long
+	beq $t0, 14, c_sharp_long
+	beq $t0, 16, d_long
+	beq $t0, 18, d
+	beq $t0, 19, c_sharp
+	beq $t0, 20, b_note # b is an instruction, sadly
+	beq $t0, 21, c_sharp
+	beq $t0, 22, d_sharp
+	beq $t0, 23, f_sharp
+	beq $t0, 24, g_sharp
+	beq $t0, 25, d_sharp
+	beq $t0, 26, f_sharp
+	beq $t0, 27, c_sharp
+	beq $t0, 28, d_sharp
+	beq $t0, 29, b_note
+	beq $t0, 30, c_sharp
+	beq $t0, 31, b_note
+	
+	j main # shouldn't happen
+	
+play_long:
+	addi $a1, $zero, 252 # Duration of sound in ms
+	syscall
 	j main
+	
+play:
+	addi $a1, $zero, 126 # Duration of sound in ms
+	syscall
+	j main
+
+f_sharp_long:
+	addi $a0, $zero, 66 # Pitch, 0-127
+	j play_long
+
+g_sharp_long:
+	addi $a0, $zero, 68 # Pitch, 0-127
+	j play_long
+	
+d:
+	addi $a0, $zero, 62 # Pitch, 0-127
+	j play
+	
+d_sharp_long:
+	addi $a0, $zero, 63 # Pitch, 0-127
+	j play_long
+	
+c_sharp:
+	addi $a0, $zero, 61 # Pitch, 0-127
+	j play
+	
+b_long:
+	addi $a0, $zero, 59 # Pitch, 0-127
+	j play_long
+	
+c_sharp_long:
+	addi $a0, $zero, 61 # Pitch, 0-127
+	j play_long
+	
+d_long:
+	addi $a0, $zero, 62 # Pitch, 0-127
+	j play_long
+	
+b_note:
+	addi $a0, $zero, 59 # Pitch, 0-127
+	j play
+	
+d_sharp:
+	addi $a0, $zero, 63 # Pitch, 0-127
+	j play
+
+f_sharp:
+	addi $a0, $zero, 66 # Pitch, 0-127
+	j play
+	
+g_sharp:
+	addi $a0, $zero, 68 # Pitch, 0-127
+	j play
+	
 	
 keyboard_input:
 	lw $s5, 0xffff0004 # Load the pressed key into $s5
@@ -366,10 +477,18 @@ foot_cond_3:
 	ble $s3, 16, bounce
 	j not_3
 	
-bounce: # Set vert_direction to 1 and altitude to 0, and add 1 to score
+bounce: # Set vert_direction to 1 and altitude to 0
 	addi $t0, $zero, 1
 	sw $t0, vert_direction
 	sw $zero, altitude
+	
+	# Sound effect!
+	addi $v0, $zero, 31 # Service 31
+	addi $a0, $zero, 70 # Pitch, 0-127
+	addi $a1, $zero, 100 # Duration of sound in ms
+	addi $a2, $zero, 12 # Instrument, 0-127
+	addi $a3, $zero, 60 # Volume, 0-127
+	syscall
 	
 	jr $ra
 	
@@ -1054,6 +1173,35 @@ game_over_screen: # Draws GAME OVER on the screen and resets game
 	sw $t0, 72($t2)
 	
 	jal DrawFromBuffer
+	
+	# Sound effect!
+	addi $v0, $zero, 33 # Service 33
+	addi $a0, $zero, 70 # Pitch, 0-127
+	addi $a1, $zero, 300 # Duration of sound in ms
+	addi $a2, $zero, 13 # Instrument, 0-127
+	addi $a3, $zero, 60 # Volume, 0-127
+	syscall
+	
+	addi $v0, $zero, 33 # Service 33
+	addi $a0, $zero, 69 # Pitch, 0-127
+	addi $a1, $zero, 300 # Duration of sound in ms
+	addi $a2, $zero, 13 # Instrument, 0-127
+	addi $a3, $zero, 60 # Volume, 0-127
+	syscall
+	
+	addi $v0, $zero, 33 # Service 33
+	addi $a0, $zero, 68 # Pitch, 0-127
+	addi $a1, $zero, 300 # Duration of sound in ms
+	addi $a2, $zero, 13 # Instrument, 0-127
+	addi $a3, $zero, 60 # Volume, 0-127
+	syscall
+	
+	addi $v0, $zero, 33 # Service 33
+	addi $a0, $zero, 67 # Pitch, 0-127
+	addi $a1, $zero, 300 # Duration of sound in ms
+	addi $a2, $zero, 13 # Instrument, 0-127
+	addi $a3, $zero, 60 # Volume, 0-127
+	syscall
 	
 	j wait_for_start
 	
