@@ -151,12 +151,12 @@ sleep:
 	j play_sound
 	
 play_sound: # Maps the frame count to the correct tone in the nyan cat soundtrack
-	# Soundtrack has 32 8th notes at ~60bpm
-	# Since the sleep is 42ms, every 3 frames = 1 eigth note
+	# Soundtrack has 32 8th notes at ~80bpm
+	# Since the sleep is 42ms, every 2 frames = 1 eigth note
 	# $t0 stores frame count
 	
-	addi $t1, $zero, 3
-	div $t0, $t1 # HI stores remainder, i.e. frames % 3
+	addi $t1, $zero, 2
+	div $t0, $t1 # HI stores remainder, i.e. frames % 2
 	mfhi $t1
 	bne $t1, $zero, main # If frame is not multiple of 3, don't play sound
 	mflo $t0 # $t0 now stores 8th note count (absolute)
@@ -197,12 +197,12 @@ play_sound: # Maps the frame count to the correct tone in the nyan cat soundtrac
 	j main # shouldn't happen
 	
 play_long:
-	addi $a1, $zero, 252 # Duration of sound in ms
+	addi $a1, $zero, 168 # Duration of sound in ms
 	syscall
 	j main
 	
 play:
-	addi $a1, $zero, 126 # Duration of sound in ms
+	addi $a1, $zero, 84 # Duration of sound in ms
 	syscall
 	j main
 
