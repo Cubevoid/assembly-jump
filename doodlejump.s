@@ -17,8 +17,14 @@
 # - Milestone 5
 ## Which approved additional features have been implemented?
 # (See the assignment handout for the list of additional features)
+#
+# Game features:
+#
 # 1. Scoreboard
 # 2. Game over screen (s to reset game)
+#
+# Additional features:
+#
 # 3. Fancy graphics: Doodler, scrolling background, festive platforms
 # 4. Gravity
 # 5. Sound effects (bounce, game over) & background music (Nyan cat!)
