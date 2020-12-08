@@ -14,15 +14,17 @@
 #
 # Which milestone is reached in this submission?
 # (See the assignment handout for descriptions of the milestones)
-# - Milestone 4
+# - Milestone 5
 ## Which approved additional features have been implemented?
 # (See the assignment handout for the list of additional features)
 # 1. Scoreboard
 # 2. Game over screen (s to reset game)
 # 3. Fancy graphics: Doodler, scrolling background, festive platforms
+# 4. Gravity
+# 5. Sound effects (bounce, game over) & background music (Nyan cat!)
 #
 # Any additional information that the TA needs to know:
-# - Minor bug: memory address out of range when Doodler jumps into top left of screen
+# None
 #
 #####################################################################
 
@@ -31,7 +33,6 @@
 	# Display variables
 	displayAddress: .word 0x10008000
 	displayBuffer: .space 4096
-	displayLength: .word 4096
 
 	# Colors
 	bgColor: .word 0xefeae5 # tan
@@ -54,6 +55,7 @@
 	vert_direction: .byte 0 # Vertical velocity of Doodler, 0 = Down; 1 = Up
 	
 	jump_height: .word 18
+	top_of_jump_counter: .byte 0 # For my terrible implementation of gravity
 	
 	score: .word 0 # 4 digit decimal (9999 max)
 	
@@ -141,8 +143,8 @@ draw_platforms:
 
 sleep:
 	li $v0, 32 # Sleep syscall
-	li $a0, 42 # Sleep for 42 ms
-	syscall # fps is about 24
+	li $a0, 28 # Sleep for 28 ms
+	syscall # fps is about 35
 	
 	lw $t0, frames # Increment frame counter
 	addi $t0, $t0, 1
@@ -152,11 +154,11 @@ sleep:
 	
 play_sound: # Maps the frame count to the correct tone in the nyan cat soundtrack
 	# Soundtrack has 32 8th notes at ~80bpm
-	# Since the sleep is 42ms, every 2 frames = 1 eigth note
+	# Since the sleep is 33ms, every 3 frames = 1 eigth note
 	# $t0 stores frame count
 	
-	addi $t1, $zero, 2
-	div $t0, $t1 # HI stores remainder, i.e. frames % 2
+	addi $t1, $zero, 3
+	div $t0, $t1 # HI stores remainder, i.e. frames % 3
 	mfhi $t1
 	bne $t1, $zero, main # If frame is not multiple of 3, don't play sound
 	mflo $t0 # $t0 now stores 8th note count (absolute)
@@ -269,9 +271,12 @@ respond_to_j: # Move Doodler 1 pixel to the left
 move_doodler_left:
 	# Move Doodler left one pixel
 	lw $s6, doodlerLocation
+	la $t2, displayBuffer
+	beq $s6, $t2, set_direction_left # Don't move into top left corner
 	subi $s6, $s6, 4
 	sw $s6, doodlerLocation
-		
+	
+	set_direction_left:
 	# Set direction to Left (0)
 	add $s7, $zero, $zero
 	sw $s7, direction
@@ -305,11 +310,40 @@ doodler_vert: # Handles vertical Doodler stuff
 	
 	lw $t7, altitude
 	lw $t8, jump_height
-	bge $t7, $t8, start_falling # max altitude is 15 pixels
+	bge $t7, $t8, start_falling # max altitude is 18 pixels
 	
 	j move_doodler_vert # Unnecessary
 
-move_doodler_vert: # Move Doodler 1px up or down
+move_doodler_vert: # Move Doodler 1px up or down as appropriate, defined by "gravity"
+	lw $t0, altitude
+	lw $t1, jump_height
+	sub $t0, $t1, $t0 # $t0 stores jump height - altitude, i.e. how far Doodler is from peak of jump
+	
+	ble $t0, 2, move_doodler_third_speed
+	ble $t0, 5, move_doodler_half_speed # Move Doodler slower if close to peak
+	
+	j actually_move_doodler_vert # Otherwise, actually move doodler
+	
+move_doodler_half_speed:
+	lw $t1, top_of_jump_counter
+	bge $t1, 1, actually_move_doodler_vert # Move Doodler after 1 skipped frame
+	
+	# Otherwise, Doodler is close to peak - skip 1 frame (moves slower) and increment counter
+	addi $t1, $t1, 1
+	sw $t1, top_of_jump_counter
+	jr $ra
+	
+move_doodler_third_speed:
+	lw $t1, top_of_jump_counter
+	bge $t1, 2, actually_move_doodler_vert # Move Doodler after 2 skipped frames
+	
+	# Otherwise, Doodler is close to peak - skip 1 frame (moves slower) and increment counter
+	addi $t1, $t1, 1
+	sw $t1, top_of_jump_counter
+	jr $ra
+	
+actually_move_doodler_vert:
+	sw $zero, top_of_jump_counter # Reset counter
 	lw $t8, vert_direction
 	beq $t8, 0, move_doodler_down
 	beq $t8, 1, move_doodler_up
@@ -376,7 +410,7 @@ shift_everything_down_instead:
 	
 	# If any platforms fall below the floor, we need to generate a new one above
 	la $t2, displayBuffer
-	lw $t3, displayLength
+	addi $t3, $zero, 4096 # Display length
 	add $t2, $t2, $t3 # $t2 is max value of display
 	bge $s1, $t2, gen_new_platform_1 # Generate a new platform if it is below display
 	bge $s2, $t2, gen_new_platform_2
@@ -495,7 +529,7 @@ bounce: # Set vert_direction to 1 and altitude to 0
 DrawBG:
 	la $t0, displayBuffer # $t0 stores the base address for display
 	lw $t1, bgColor # $t1 stores background color (tan)
-	lw $t2, displayLength
+	addi $t2, $zero, 4096 # Display length
 	add $t2, $t0, $t2 # $t2 stores the end address for display
 	j BGLoop
 	
@@ -636,7 +670,7 @@ random_location_med: # function outputs a random location for platforms in memor
 DrawFromBuffer: # Draw whatever is in the memory buffer onto the screen
 	la $t0, displayBuffer
 	lw $t1, displayAddress
-	lw $t2, displayLength
+	addi $t2, $zero, 4096 # Display length
 	add $t3, $t1, $t2 # $t3 stores the max display address
 	j DrawLoop
 	
